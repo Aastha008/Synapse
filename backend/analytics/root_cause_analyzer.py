@@ -192,7 +192,8 @@ class RootCauseAnalyzer:
                     )
                     if resp.status_code == 200:
                         data = resp.json()
-                        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text")
+                        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts if p.get("text"))
                         if text:
                             return text.strip()
 

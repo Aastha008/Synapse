@@ -68,11 +68,13 @@ class LogProcessor:
             if anomaly:
                 self._anomaly_buffer.append(anomaly)
 
-                # Run RCA when enough anomalies accumulate and cooldown has passed
+                # Run RCA when anomalies accumulate, cooldown has passed, and no duplicate active incident
                 now = time.time()
+                active_incidents = getattr(self.metrics_engine, '_active_incidents', 0)
                 if (
                     len(self._anomaly_buffer) >= 3
                     and (now - self._last_rca_time) > self._rca_cooldown
+                    and active_incidents == 0
                 ):
                     incident = await self.root_cause_analyzer.analyze(
                         self._anomaly_buffer, self.metrics_engine,

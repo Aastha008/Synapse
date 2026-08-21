@@ -44,7 +44,7 @@ CORS_ORIGINS = [
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LLM_ENABLED = bool(GEMINI_API_KEY or OPENAI_API_KEY)
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 OPENAI_MODEL = "gpt-4o-mini"
 
 # ── Service Definitions ────────────────────────────────────────────────
