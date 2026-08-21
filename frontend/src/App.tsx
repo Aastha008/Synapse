@@ -11,7 +11,9 @@ import { fetchHealth, fetchActiveIncidents } from './services/api';
 import { SystemHealthSnapshot, Incident } from './types';
 
 function App() {
-  const wsUrl = `ws://${window.location.host}/ws`;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const defaultWsUrl = `${protocol}//${window.location.host}/ws`;
+  const wsUrl = import.meta.env.VITE_WS_URL || defaultWsUrl;
   const { lastHealthUpdate, lastIncident, lastLog, isConnected } = useWebSocket(wsUrl);
   
   const [health, setHealth] = useState<SystemHealthSnapshot | null>(null);

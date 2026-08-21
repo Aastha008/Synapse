@@ -32,9 +32,10 @@ AGGREGATION_INTERVAL_SECONDS = 2      # aggregate every 2 seconds
 HEALTH_BROADCAST_INTERVAL_SECONDS = 3 # broadcast health snapshot interval
 
 # ── API ─────────────────────────────────────────────────────────────────
-API_HOST = "127.0.0.1"
-API_PORT = 8000
+API_HOST = os.getenv("HOST", "0.0.0.0")
+API_PORT = int(os.getenv("PORT", 8000))
 CORS_ORIGINS = [
+    "*",
     "http://localhost:5173",
     "http://localhost:3000",
     "http://127.0.0.1:5173",

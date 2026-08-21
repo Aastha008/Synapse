@@ -1,0 +1,29 @@
+services:
+  # ── Backend Web Service (FastAPI + WebSockets) ──────────────────────
+  - type: web
+    name: synapse-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python run.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: HOST
+        value: 0.0.0.0
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+
+  # ── Frontend Static Site (React + Vite) ──────────────────────────────
+  - type: static
+    name: synapse-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: synapse-backend
+          property: host
