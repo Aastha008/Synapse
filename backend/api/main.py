@@ -160,3 +160,11 @@ async def reset_scenario():
         except Exception:
             pass
     return {'status': 'reset'}
+
+# ── Mount Frontend Static Files (if built) ──────────────────────────────
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
