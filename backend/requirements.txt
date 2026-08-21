@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+aiosqlite
+scikit-learn
+scipy
+numpy
+pydantic
+websockets
+httpx
+python-dotenv
