@@ -48,6 +48,14 @@ LLM_ENABLED = bool(GEMINI_API_KEY or OPENAI_API_KEY)
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 OPENAI_MODEL = "gpt-4o-mini"
 
+# ── Raw Event Archive (MongoDB) ────────────────────────────────────────
+# Stores untouched, non-normalized log payloads for incident-time evidence
+# lookups — separate from the structured SQLite logs/metrics tables.
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "synapse")
+MONGO_ENABLED = bool(os.getenv("MONGO_URI")) or os.getenv("MONGO_ENABLED", "false").lower() == "true"
+RAW_EVENT_TTL_SECONDS = int(os.getenv("RAW_EVENT_TTL_SECONDS", 60 * 60 * 24 * 7))  # 7 days
+
 # ── Service Definitions ────────────────────────────────────────────────
 SERVICES = [
     "api-gateway",

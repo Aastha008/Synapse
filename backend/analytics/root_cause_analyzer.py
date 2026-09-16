@@ -4,6 +4,7 @@ from datetime import datetime
 from models.schemas import (
     AnomalyAlert, Incident, Evidence, Severity, IncidentStatus,
 )
+from database.mongo_repository import get_raw_logs_for_incident
 import config
 
 
@@ -23,18 +24,27 @@ class RootCauseAnalyzer:
         root_service = self._find_root_service(anomalous_services)
         severity = self._determine_severity(anomalies)
 
+        # Pull the raw, non-normalized log payloads for the implicated
+        # services around the incident window — this is the one place in
+        # the pipeline that reads from the Mongo archive rather than the
+        # structured SQLite tables. No-ops to [] if Mongo is disabled.
+        raw_logs = await get_raw_logs_for_incident(
+            services=sorted(anomalous_services),
+            around=anomalies[-1].timestamp,
+        )
+
         title, root_cause_desc, confidence, actions = self._rule_based_analysis(
             anomalies, root_service, metrics_engine,
         )
 
         llm_desc = None
         if config.LLM_ENABLED:
-            llm_desc = await self._llm_analysis(anomalies, metrics_engine)
+            llm_desc = await self._llm_analysis(anomalies, metrics_engine, raw_logs)
             if llm_desc:
                 root_cause_desc = llm_desc
                 confidence = min(1.0, confidence + 0.1)
 
-        evidence = self._build_evidence(anomalies, root_service, metrics_engine)
+        evidence = self._build_evidence(anomalies, root_service, metrics_engine, raw_logs)
 
         incident = Incident(
             severity=severity,
@@ -157,6 +167,7 @@ class RootCauseAnalyzer:
         self,
         anomalies: list[AnomalyAlert],
         metrics_engine,
+        raw_logs: list[dict] | None = None,
     ) -> str | None:
         if not config.LLM_ENABLED:
             return None
@@ -168,14 +179,29 @@ class RootCauseAnalyzer:
                 for a in anomalies
             )
 
+            # A handful of real raw log lines, not just aggregate numbers —
+            # this is what the Mongo archive buys the LLM step specifically.
+            raw_log_excerpt = ""
+            if raw_logs:
+                lines = []
+                for doc in raw_logs[:5]:
+                    payload = doc.get("raw_payload", {})
+                    lines.append(
+                        f"- [{doc.get('service')}] {payload.get('level', '')}: "
+                        f"{payload.get('message', '')}"
+                    )
+                raw_log_excerpt = "\n\nRaw log excerpts from the affected services:\n" + "\n".join(lines)
+
             prompt = (
                 "You are an expert Site Reliability Engineer (SRE) analyzing a real-time microservices incident.\n"
                 "Here are the detected anomalies across services:\n"
-                f"{anomaly_summary}\n\n"
+                f"{anomaly_summary}"
+                f"{raw_log_excerpt}\n\n"
                 "Based on service dependencies (api-gateway depends on payment-service/user-service, which depend on database-service):\n"
                 "1. State the most likely root cause in 2-3 clear sentences.\n"
                 "2. Explain why cascading failures occurred.\n"
-                "3. Provide 3 specific remediation steps."
+                "3. Provide 3 specific remediation steps.\n"
+                "If the raw log excerpts contain a specific error message, quote it briefly to support your reasoning."
             )
 
             async with httpx.AsyncClient(timeout=20.0) as client:
@@ -221,6 +247,7 @@ class RootCauseAnalyzer:
         anomalies: list[AnomalyAlert],
         root_service: str,
         metrics_engine,
+        raw_logs: list[dict] | None = None,
     ) -> list[Evidence]:
         evidence: list[Evidence] = []
         for a in anomalies:
@@ -258,6 +285,19 @@ class RootCauseAnalyzer:
                             description=f"Dependency chain: {' → '.join(chain)}",
                         )
                     )
+
+        # A few real raw log lines as evidence, sourced from the Mongo
+        # archive rather than the structured anomaly/metric tables.
+        for doc in (raw_logs or [])[:5]:
+            payload = doc.get("raw_payload", {})
+            evidence.append(
+                Evidence(
+                    timestamp=doc.get("timestamp", anomalies[0].timestamp),
+                    type="raw_log",
+                    service=doc.get("service", "unknown"),
+                    description=f"{payload.get('level', 'LOG')}: {payload.get('message', '')}",
+                )
+            )
 
         return evidence
 

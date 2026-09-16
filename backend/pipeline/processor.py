@@ -1,10 +1,12 @@
 """Log Processing Engine — orchestrates the data flow from queue to storage, analytics, and WebSocket."""
 
+import asyncio
 import time
 import logging
 from typing import Any
 
 from models.schemas import LogEvent, Metric, AnomalyAlert, WSMessage
+from database.mongo_repository import insert_raw_event
 
 
 logger = logging.getLogger("processor")
@@ -39,6 +41,20 @@ class LogProcessor:
         try:
             log_event = LogEvent(**data)
             await self.repository.insert_log(log_event)
+
+            # Archive the untouched raw payload (schema-less) without blocking
+            # this hot path — the anomaly detector never needs this, only the
+            # RCA engine reads it back, at incident time.
+            archive_task = asyncio.create_task(
+                insert_raw_event(
+                    service=log_event.service,
+                    event_type="log",
+                    raw_payload=data,
+                    correlation_id=log_event.id,
+                    timestamp=log_event.timestamp,
+                )
+            )
+            archive_task.add_done_callback(self._log_archive_result)
 
             # Track errors in metrics engine
             if log_event.level in ("ERROR", "CRITICAL"):
@@ -92,3 +108,11 @@ class LogProcessor:
                         self._last_rca_time = now
         except Exception as e:
             logger.error(f"Error handling metric: {e}")
+
+    @staticmethod
+    def _log_archive_result(task: asyncio.Task) -> None:
+        """Fire-and-forget tasks swallow exceptions silently otherwise —
+        this just makes sure a broken archive write shows up in logs."""
+        exc = task.exception() if not task.cancelled() else None
+        if exc:
+            logger.error(f"Raw event archive task failed: {exc}")

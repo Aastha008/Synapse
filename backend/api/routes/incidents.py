@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 
+from database.mongo_repository import get_raw_logs_for_incident
+
 router = APIRouter(prefix='/api/incidents', tags=['incidents'])
 
 _repository = None
@@ -37,3 +39,21 @@ async def get_incident(incident_id: str):
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
     return incident  # already a dict from repository
+
+
+@router.get('/{incident_id}/raw-logs')
+async def get_incident_raw_logs(incident_id: str, limit: int = Query(25)):
+    """Raw, non-normalized log payloads for this incident's affected services,
+    pulled from the Mongo archive — for a frontend 'view raw evidence' drill-down."""
+    if _repository is None:
+        raise HTTPException(status_code=503, detail="Repository not initialized")
+    incident = await _repository.get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    raw_logs = await get_raw_logs_for_incident(
+        services=incident.get("affected_services", []),
+        around=incident.get("detected_at"),
+        limit=limit,
+    )
+    return {"incident_id": incident_id, "raw_logs": raw_logs}

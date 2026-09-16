@@ -6,6 +6,7 @@ import logging
 
 import config
 from database.db import init_db
+from database import mongo
 from database.repository import Repository
 from pipeline.queue import EventQueue
 from pipeline.processor import LogProcessor
@@ -41,7 +42,10 @@ async def lifespan(app: FastAPI):
     
     logger.info("Initializing database...")
     await init_db()
-    
+
+    logger.info("Connecting raw event archive (MongoDB)...")
+    await mongo.connect()  # no-op / non-fatal if disabled or unreachable
+
     logger.info("Creating components...")
     queue = EventQueue()
     repository = Repository()
@@ -93,6 +97,7 @@ async def lifespan(app: FastAPI):
         await queue.stop()
     except Exception:
         pass
+    await mongo.close()
 
 app = FastAPI(
     title='Synapse — AI Observability & Root Cause Intelligence',
