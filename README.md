@@ -74,12 +74,12 @@ The raw archive sits off the hot path deliberately — every event still gets ar
 
 ### 3. AI Root Cause Analysis (RCA)
 - **Graph-Based Dependency Traversal**: Pinpoints the true failure origin by traversing directed dependency graphs and scoring anomalous dependents.
-- **LLM-Enhanced Reasoning**: When an API key is configured, a Gemini (or OpenAI, as fallback) call turns the graph's structured finding — plus real raw log excerpts pulled from MongoDB — into a plain-English incident narrative.
-- **Automated Incident Reports** including severity, confidence score, a chronological evidence timeline (anomalies, dependency chains, *and* raw log entries), and an actionable SRE remediation checklist.
+- **Gemini AI Root Cause Reasoning**: Powered by Google Gemini (`GEMINI_API_KEY`), converting structured graph findings and raw log excerpts directly into plain-English incident narratives, impact summaries, and actionable SRE remediation checklists.
+- **Automated Incident Reports**: Delivers severity ratings, confidence scores, chronological anomaly evidence timelines, and dependency chains backed by real log lines.
 
 ### 4. Polyglot Persistence
-- **SQLite** (`aiosqlite`) for structured, aggregatable telemetry — logs, metrics, incidents.
-- **MongoDB** (`motor`) for the raw, non-normalized event archive — untouched JSON payloads, queried only when an incident needs real evidence. See [Data Storage](#-data-storage-why-two-databases) below.
+- **SQLite** (`aiosqlite`) for structured, aggregatable telemetry — logs, metrics, and incident records.
+- **MongoDB** (`motor`) used as the active raw event archive — high-throughput, non-blocking ingestion of raw JSON payloads, queried for real log evidence during incident investigations. See [Data Storage](#-data-storage-why-two-databases) below.
 
 ### 5. Data Analytics & Time-Series Engine
 - **In-Memory Ring Buffer Aggregation**: Real-time percentile computation (P50, P95, P99), error distribution analytics, and velocity/trend direction indicators.
@@ -101,9 +101,9 @@ The raw archive sits off the hot path deliberately — every event still gets ar
 |---|---|
 | Backend | Python 3.14, FastAPI, AsyncIO, Uvicorn |
 | Structured storage | SQLite (`aiosqlite`), Pydantic v2 |
-| Raw event archive | MongoDB (`motor`) |
+| Raw event archive | MongoDB (`motor`) — Used for raw telemetry storage & log evidence |
 | ML / Analytics | Scikit-Learn (Isolation Forest), NumPy, SciPy |
-| AI reasoning | Google Gemini API (default), OpenAI API (fallback) via `httpx` |
+| AI reasoning | Google Gemini API (Gemini API Key configured for RCA reasoning), OpenAI API (fallback) via `httpx` |
 | Real-time | WebSockets (`WSMessage` protocol) |
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS v4, Recharts, Lucide Icons |
 
@@ -144,17 +144,17 @@ So every raw event is also archived, untouched, into a **MongoDB** `raw_events` 
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+ and npm
-- (Optional) A MongoDB instance — [Atlas free tier](https://www.mongodb.com/cloud/atlas/register) is the fastest way to get a `MONGO_URI`
-- (Optional) A [Gemini API key](https://aistudio.google.com/) for LLM-enhanced RCA narratives
+- **MongoDB** instance (used for raw log archiving via `MONGO_URI`) — e.g. [Atlas free tier](https://www.mongodb.com/cloud/atlas/register) or local instance
+- **Gemini API Key** (used for AI-driven RCA narratives) — obtain from [Google AI Studio](https://aistudio.google.com/)
 
 ### 1. Backend Setup & Run
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env   # then fill in any keys you want to use
+cp .env.example .env   # configure your GEMINI_API_KEY and MONGO_URI in .env
 python run.py
 ```
-The FastAPI backend starts at `http://127.0.0.1:8000` with a WebSocket endpoint at `ws://127.0.0.1:8000/ws`. Every optional integration (Gemini/OpenAI, MongoDB) degrades gracefully — the platform runs fully functional with none of them configured.
+The FastAPI backend starts at `http://127.0.0.1:8000` with a WebSocket endpoint at `ws://127.0.0.1:8000/ws`. With MongoDB and the Gemini API key configured, Synapse automatically archives raw events and generates AI-powered root-cause incident analyses.
 
 ### 2. Frontend Setup & Run
 ```bash
@@ -168,17 +168,17 @@ Open `http://localhost:5173` in your browser to view the real-time observability
 
 ## 🔑 Environment Variables
 
-All optional — copy `backend/.env.example` to `backend/.env` and fill in what you want to enable.
+Configure these settings in `backend/.env` (both **MongoDB** and **Gemini API Key** are integrated):
 
-| Variable | Default | Purpose |
+| Variable | Status / Default | Purpose |
 |---|---|---|
-| `GEMINI_API_KEY` | — | Enables Gemini-powered RCA narratives |
+| `GEMINI_API_KEY` | **Configured** | Google Gemini API key used for generating AI Root Cause Analysis (RCA) narratives |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Gemini model used for RCA reasoning |
-| `OPENAI_API_KEY` | — | Fallback LLM provider if Gemini isn't set |
-| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model used if that path is active |
-| `MONGO_URI` | — | Enables the raw event archive (e.g. an Atlas connection string) |
-| `MONGO_DB_NAME` | `synapse` | Mongo database name |
-| `RAW_EVENT_TTL_SECONDS` | `604800` (7 days) | Auto-expiry for archived raw events |
+| `MONGO_URI` | **Configured** | MongoDB connection URI used for the raw event archive |
+| `MONGO_DB_NAME` | `synapse` | MongoDB database name |
+| `RAW_EVENT_TTL_SECONDS` | `604800` (7 days) | Auto-expiry for archived raw events in MongoDB |
+| `OPENAI_API_KEY` | Optional (fallback) | Fallback LLM provider if Gemini isn't set |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model used if fallback path is active |
 
 ---
 
